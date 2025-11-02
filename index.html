@@ -5,18 +5,87 @@
   <title>席替えサイト Ver2</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
-    body { margin:0; font-family:sans-serif; }
-    .seat-map { display: flex; flex-direction: column; gap: 8px; }
-    .seat-row { display: flex; gap: 8px; }
-    .seat { width: 56px; height: 56px; border-radius: 8px; display: flex; flex-direction: column; justify-content: center; align-items: center; font-weight: bold; border: 2px solid #bbb; user-select: none; cursor: pointer; }
-    .seat.enabled { background: #4caf50; color: white; }
-    .seat.disabled { background: #b0b0b0; color: #888; cursor: not-allowed; }
-    .seat.selected { background: #ff9800; color: #fff; border: 2px solid #f57c00; }
-    .modal-bg { position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.4); display:flex; justify-content:center; align-items:center; z-index:1000; }
-    .modal-main { background:white; padding:32px; border-radius:12px; min-width:370px;}
+    body {
+      margin:0; font-family:sans-serif;
+      background: #f5f3ff; /* 薄い藤色ベース */
+    }
+    .main-layout {
+      display: flex; height: 100vh;
+      background: #f5f3ff;
+    }
+    .main-left {
+      flex:1; display:flex; justify-content:center; align-items:center; min-width:380px;
+      background: #ece0fa;
+      border-right: 2px solid #d1c4e9;
+    }
+    .main-right {
+      flex:1; background:#f5f3ff;
+    }
+    .seat-map-area {
+      background: #f3eafd;
+      padding: 36px 32px 32px 32px;
+      border-radius: 16px;
+      box-shadow: 0 2px 16px 0 rgba(180,160,240,0.07);
+      min-width: 400px;
+      position: relative;
+    }
+    .blackboard {
+      position: absolute;
+      top: 12px; left: 24px; right: 24px;
+      height: 28px;
+      background: #5e5c7c;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px 0 rgba(80,70,140,0.10);
+      display: flex; align-items: center; justify-content: center;
+      color: #fff;
+      font-weight: bold;
+      letter-spacing: 0.2em;
+      font-size: 1.2em;
+      z-index: 2;
+    }
+    .seat-map { display: flex; flex-direction: row; gap: 12px; margin-top: 56px; }
+    .seat-col { display: flex; flex-direction: column; gap: 12px; }
+    .seat {
+      width: 54px; height: 54px; border-radius: 10px;
+      display: flex; flex-direction: column; justify-content: center; align-items: center;
+      font-weight: bold; border: 2px solid #c2b7e2;
+      user-select: none; cursor: pointer;
+      font-size: 1.25em; transition: background 0.2s;
+      box-shadow: 0 1px 6px 0 rgba(160,140,210,0.05);
+      background: #ede7fa;
+      color: #6e5c8c;
+    }
+    .seat.enabled {
+      background: #e6e6fa;
+      color: #6e5c8c;
+      border: 2px solid #c2b7e2;
+    }
+    .seat.disabled {
+      background: #d1c4e9;
+      color: #b8a8d1;
+      cursor: not-allowed;
+      border: 2px dashed #b0a0d0;
+    }
+    .seat.selected {
+      background: #b39ddb;
+      color: #fff;
+      border: 2px solid #7e57c2;
+    }
+    .seat .seat-label {
+      font-size: 1.05em;
+      font-weight: bold;
+    }
+    .seat .seat-assignment {
+      font-size: 0.85em;
+      color: #9575cd;
+      font-weight: normal;
+    }
+    .modal-bg { position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(180,160,240,0.22); display:flex; justify-content:center; align-items:center; z-index:1000; }
+    .modal-main { background:white; padding:32px; border-radius:16px; min-width:370px; box-shadow:0 2px 24px 0 rgba(120,100,180,0.12);}
     @media (max-width: 900px) {
       .main-layout { flex-direction: column; }
       .main-left, .main-right { width:100%; min-width:0; }
+      .seat-map-area { min-width: 0; width:100%; }
     }
   </style>
 </head>
@@ -39,22 +108,28 @@
       maxSelect = 36,
       onDoubleClick
     }) {
-      return React.createElement('div', { className: "seat-map" },
-        seatsEnabled.map((row, i) =>
-          React.createElement('div', { className: "seat-row", key: i },
-            row.map((enabled, j) => {
-              const key = `${i},${j}`;
-              const selected = selectedSeats?.includes(key);
-              return React.createElement('div', {
-                  key: j,
-                  className: `seat ${enabled ? "enabled" : "disabled"}${selected ? " selected" : ""}`,
-                  onClick: selectMode && enabled ? () => onSeatClick(i, j) : undefined,
-                  onDoubleClick: !selectMode && onDoubleClick ? () => onDoubleClick(i, j) : undefined
-                },
-                React.createElement('div', null, String.fromCharCode(65 + i) + '-' + (j + 1)),
-                React.createElement('div', { style: { fontSize:"0.8em" } }, seatAssignments?.[i]?.[j] || "")
-              );
-            })
+      // 座席番号を縦列ごと左→右：col * ROWS + row + 1
+      return React.createElement('div', { className: "seat-map-area" },
+        React.createElement('div', { className: "blackboard" }, '黒板'),
+        React.createElement('div', { className: "seat-map" },
+          Array.from({length: COLS}).map((_, col) =>
+            React.createElement('div', { className: "seat-col", key: col },
+              Array.from({length: ROWS}).map((_, row) => {
+                const key = `${row},${col}`;
+                const enabled = seatsEnabled[row][col];
+                const selected = selectedSeats?.includes(key);
+                const seatNum = col * ROWS + row + 1;
+                return React.createElement('div', {
+                    key: row,
+                    className: `seat ${enabled ? "enabled" : "disabled"}${selected ? " selected" : ""}`,
+                    onClick: selectMode && enabled ? () => onSeatClick(row, col) : undefined,
+                    onDoubleClick: !selectMode && onDoubleClick ? () => onDoubleClick(row, col) : undefined
+                  },
+                  React.createElement('div', { className: "seat-label" }, seatNum),
+                  React.createElement('div', { className: "seat-assignment" }, seatAssignments?.[row]?.[col] || "")
+                );
+              })
+            )
           )
         )
       );
@@ -112,10 +187,10 @@
       onShuffle
     }) {
       return React.createElement('div', { style: { padding: "24px" } },
-        React.createElement('h2', null, "座席条件設定"),
+        React.createElement('h2', { style: { color: "#7e57c2" } }, "座席条件設定"),
 
         // 範囲指定グループ
-        React.createElement('h3', null, "範囲指定"),
+        React.createElement('h3', { style: { color: "#9575cd" } }, "範囲指定"),
         ...ranges.map((group, idx) => React.createElement('div', { key: idx, style:{marginBottom:"8px"}},
           React.createElement('input', {
             type: "text", placeholder: "名前（カンマ区切り）",
@@ -125,19 +200,19 @@
               newRanges[idx].names = e.target.value.split(",").map(s => s.trim()).filter(Boolean);
               setRanges(newRanges);
             },
-            style: { marginRight: "8px" }
+            style: { marginRight: "8px", background: "#f3eafd", color: "#6e5c8c", border: "1.5px solid #c2b7e2", borderRadius: "6px", padding: "3px 9px" }
           }),
-          React.createElement('button', { onClick: () => onOpenRangeModal(idx) }, "範囲指定"),
-          React.createElement('span', { style:{marginLeft:8, fontSize:"0.9em"} }, group.seats?.length ? `指定席数:${group.seats.length}` : ""),
+          React.createElement('button', { onClick: () => onOpenRangeModal(idx), style:{background:'#b39ddb',color:'#fff',border:'none',borderRadius:'6px',padding:'4px 12px'} }, "範囲指定"),
+          React.createElement('span', { style:{marginLeft:8, fontSize:"0.9em", color: "#7e57c2"} }, group.seats?.length ? `指定席数:${group.seats.length}` : ""),
           React.createElement('button', {
             onClick: () => setRanges(ranges.filter((_, i) => i !== idx)),
-            style:{marginLeft:"8px"}
+            style:{marginLeft:"8px", background:'#d1c4e9',color:'#6e5c8c',border:'none',borderRadius:'6px',padding:'4px 12px'}
           }, "削除")
         )),
-        React.createElement('button', { onClick: () => setRanges([...ranges, { names: [], seats: [] }]) }, "範囲指定を追加"),
+        React.createElement('button', { onClick: () => setRanges([...ranges, { names: [], seats: [] }]), style:{background:'#b39ddb',color:'#fff',border:'none',borderRadius:'6px',padding:'4px 16px'} }, "範囲指定を追加"),
 
         // 固定席
-        React.createElement('h3', { style: { marginTop: "16px" } }, "固定席"),
+        React.createElement('h3', { style: { marginTop: "16px", color: "#9575cd" } }, "固定席"),
         ...fixedSeats.map((fix, idx) => React.createElement('div', { key: idx, style:{marginBottom:"8px"}},
           React.createElement('input', {
             type: "text", placeholder: "名前",
@@ -147,38 +222,39 @@
               newFixed[idx].name = e.target.value;
               setFixedSeats(newFixed);
             },
-            style: { marginRight: "8px" }
+            style: { marginRight: "8px", background: "#f3eafd", color: "#6e5c8c", border: "1.5px solid #c2b7e2", borderRadius: "6px", padding: "3px 9px" }
           }),
-          React.createElement('button', { onClick: () => onOpenFixedModal(idx) }, "座席選択"),
-          React.createElement('span', { style:{marginLeft:8, fontSize:"0.9em"} }, fix.seat ? `指定席:${fix.seat}` : ""),
+          React.createElement('button', { onClick: () => onOpenFixedModal(idx), style:{background:'#b39ddb',color:'#fff',border:'none',borderRadius:'6px',padding:'4px 12px'} }, "座席選択"),
+          React.createElement('span', { style:{marginLeft:8, fontSize:"0.9em", color:"#7e57c2"} }, fix.seat ? `指定席:${fix.seat}` : ""),
           React.createElement('button', {
             onClick: () => setFixedSeats(fixedSeats.filter((_, i) => i !== idx)),
-            style:{marginLeft:"8px"}
+            style:{marginLeft:"8px", background:'#d1c4e9',color:'#6e5c8c',border:'none',borderRadius:'6px',padding:'4px 12px'}
           }, "削除")
         )),
-        React.createElement('button', { onClick: () => setFixedSeats([...fixedSeats, { name: "", seat: null }]) }, "固定席を追加"),
+        React.createElement('button', { onClick: () => setFixedSeats([...fixedSeats, { name: "", seat: null }]), style:{background:'#b39ddb',color:'#fff',border:'none',borderRadius:'6px',padding:'4px 16px'} }, "固定席を追加"),
 
         // 範囲指定なし
-        React.createElement('h3', { style: { marginTop: "16px" } }, "範囲指定なし"),
+        React.createElement('h3', { style: { marginTop: "16px", color: "#9575cd" } }, "範囲指定なし"),
         React.createElement('textarea', {
           placeholder: "名前（改行区切り）",
           value: others.join("\n"),
           onChange: e => setOthers(e.target.value.split("\n").map(s => s.trim()).filter(Boolean)),
           rows: 4,
-          style: { width: "100%", marginBottom: "16px" }
+          style: { width: "100%", marginBottom: "16px", background: "#f3eafd", color: "#6e5c8c", border: "1.5px solid #c2b7e2", borderRadius: "6px", padding: "7px 9px" }
         }),
 
         // 席替えボタン
         React.createElement('button', {
           style: {
             marginTop: "24px",
-            background: "#2196f3",
+            background: "#9575cd",
             color: "white",
-            padding: "12px 24px",
-            fontSize: "1.2rem",
-            borderRadius: "8px",
+            padding: "14px 24px",
+            fontSize: "1.15rem",
+            borderRadius: "12px",
             border: "none",
-            width: "100%"
+            width: "100%",
+            boxShadow: "0 1px 8px 0 rgba(120,100,180,0.09)"
           },
           onClick: onShuffle
         }, "席替えする")
@@ -277,15 +353,15 @@
         setSeatAssignments(assignments);
       }
 
-      return React.createElement('div', { className:"main-layout", style:{display:"flex", height:"100vh"} },
-        React.createElement('div', { className:"main-left", style:{flex:1, display:"flex", justifyContent:"center", alignItems:"center", minWidth:380} },
+      return React.createElement('div', { className:"main-layout" },
+        React.createElement('div', { className:"main-left" },
           React.createElement(SeatMap, {
             seatsEnabled,
             seatAssignments,
             onDoubleClick: handleSeatDoubleClick
           })
         ),
-        React.createElement('div', { className:"main-right", style:{flex:1, background:"#f5f5f5"} },
+        React.createElement('div', { className:"main-right" },
           React.createElement(ConditionPanel, {
             ranges, setRanges,
             fixedSeats, setFixedSeats,
